@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, FormEvent } from 'react';
 import { Message, Conversation, Attachment } from '@/types';
 import { AVAILABLE_MODELS } from '@/lib/models';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatAreaProps {
   conversation: Conversation | null;
@@ -16,6 +18,18 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/** Render message content: markdown for assistant, plain text for user */
+function MessageContent({ content, role }: { content: string; role: string }) {
+  if (role === 'assistant') {
+    return (
+      <div className="text-sm leading-relaxed markdown-body">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      </div>
+    );
+  }
+  return <p className="text-sm whitespace-pre-wrap leading-relaxed">{content}</p>;
 }
 
 export default function ChatArea({
@@ -74,7 +88,6 @@ export default function ChatArea({
       setPendingAttachments((prev) => [...prev, ...newAttachments]);
     });
 
-    // Reset file input so same file can be re-selected
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -268,7 +281,7 @@ export default function ChatArea({
                   ))}
                 </div>
               )}
-              <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+              <MessageContent content={msg.content} role={msg.role} />
             </div>
             {msg.role === 'user' && (
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
@@ -289,7 +302,9 @@ export default function ChatArea({
               </svg>
             </div>
             <div className="max-w-[75%] rounded-2xl px-4 py-3 bg-gray-100 text-gray-800">
-              <p className="text-sm whitespace-pre-wrap leading-relaxed">{streamingContent}</p>
+              <div className="text-sm leading-relaxed markdown-body">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
+              </div>
               <span className="inline-block w-1.5 h-4 bg-indigo-400 animate-pulse ml-0.5 align-middle"></span>
             </div>
           </div>
