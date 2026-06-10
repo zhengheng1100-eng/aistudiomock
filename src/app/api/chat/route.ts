@@ -1,11 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+async function fetchWithRetry(url: string, body: unknown, retries = 2): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      // If 503 (Service Unavailable), retry after a short delay
+      if (response.status === 503 && i < retries) {
+        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+        continue;
+      }
+      return response;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (i < retries) {
+        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+      }
+    }
+  }
+  throw lastError || new Error('Request failed after retries');
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { messages, model, webSearch } = body;
 
-    // Check both possible env var names for compatibility
     const apiKey =
       process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -15,7 +39,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Use the v1beta API endpoint
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
     const contents = messages.map((msg: { role: string; content: string }) => ({
@@ -33,19 +56,23 @@ export async function POST(req: NextRequest) {
       ];
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    });
+    console.log(`Calling Gemini API: model=${model}, webSearch=${webSearch}`);
+    const response = await fetchWithRetry(url, requestBody);
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Google AI API error:', response.status, errorText);
-      return NextResponse.json(
-        { error: `API error: ${response.status} - ${errorText.slice(0, 200)}` },
-        { status: response.status }
-      );
+
+      let userMessage = `API error: ${response.status}`;
+      if (response.status === 503) {
+        userMessage =
+          'Service temporarily unavailable for this model. Please try again in a moment, or switch to a different model like "Gemini 2.5 Flash" or "Gemini 3 Flash Preview".';
+      } else if (response.status === 429) {
+        userMessage =
+          'Rate limited. This model requires Early Access quota in Google AI Studio. Please switch to another model, or apply for Early Access at: https://aistudio.google.com/app/apikey';
+      }
+
+      return NextResponse.json({ error: userMessage }, { status: response.status });
     }
 
     const reader = response.body?.getReader();

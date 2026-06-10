@@ -4,7 +4,7 @@ export const AVAILABLE_MODELS: ModelInfo[] = [
   {
     id: 'gemini-3.5-flash',
     name: 'Gemini 3.5 Flash',
-    description: 'Latest fast and efficient model for rapid responses',
+    description: 'Latest fast and efficient model',
   },
   {
     id: 'gemini-3-flash-preview',
@@ -12,14 +12,24 @@ export const AVAILABLE_MODELS: ModelInfo[] = [
     description: 'Next generation fast model in preview',
   },
   {
+    id: 'gemini-3.1-pro-preview',
+    name: 'Gemini 3.1 Pro (Early Access)',
+    description: 'Advanced model - requires Early Access in AI Studio',
+  },
+  {
+    id: 'gemini-3-pro-preview',
+    name: 'Gemini 3 Pro (Early Access)',
+    description: 'New generation pro - requires Early Access in AI Studio',
+  },
+  {
     id: 'gemini-2.5-pro',
     name: 'Gemini 2.5 Pro',
-    description: 'Advanced model for complex reasoning and analysis',
+    description: 'Advanced model for complex reasoning',
   },
   {
     id: 'gemini-2.5-flash',
     name: 'Gemini 2.5 Flash',
-    description: 'Fast and versatile model with balanced performance',
+    description: 'Fast and versatile model',
   },
   {
     id: 'gemini-2.0-flash',
