@@ -1,65 +1,101 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { Conversation, Message } from '@/types';
+import { getConversations, createConversation, deleteConversation, updateConversation, addMessage } from '@/lib/storage';
+import { AVAILABLE_MODELS } from '@/lib/models';
+import { useAuth } from '@/context/AuthContext';
+import Sidebar from '@/components/Sidebar';
+import ChatArea from '@/components/ChatArea';
+
+function loadConversations(): Conversation[] {
+  if (typeof window === 'undefined') return [];
+  return getConversations();
+}
+
+export default function HomePage() {
+  const { authenticated, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const [conversations, setConversations] = useState<Conversation[]>(loadConversations);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [sidebarCollapsed] = useState(false);
+  const prevAuthRef = useRef(authenticated);
+
+  useEffect(() => {
+    if (!authLoading && !authenticated) {
+      router.push('/login');
+    }
+  }, [authenticated, authLoading, router]);
+
+  useEffect(() => {
+    if (authenticated && !prevAuthRef.current) {
+      setConversations(getConversations());
+    }
+    prevAuthRef.current = authenticated;
+  }, [authenticated]);
+
+  const activeConversation = conversations.find((c) => c.id === activeId) || null;
+
+  const handleNew = useCallback(() => {
+    const conv = createConversation(AVAILABLE_MODELS[0].id, false);
+    setConversations(getConversations());
+    setActiveId(conv.id);
+  }, []);
+
+  const handleSelect = useCallback((id: string) => {
+    setActiveId(id);
+  }, []);
+
+  const handleDelete = useCallback((id: string) => {
+    deleteConversation(id);
+    setConversations(getConversations());
+    if (activeId === id) {
+      const remaining = getConversations();
+      setActiveId(remaining.length > 0 ? remaining[0].id : null);
+    }
+  }, [activeId]);
+
+  const handleUpdateConversation = useCallback((id: string, updates: Partial<Conversation>) => {
+    updateConversation(id, updates);
+    setConversations(getConversations());
+  }, []);
+
+  const handleAddMessage = useCallback((conversationId: string, message: Message) => {
+    addMessage(conversationId, message);
+    setConversations(getConversations());
+  }, []);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-500 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authenticated) {
+    return null;
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="h-screen flex overflow-hidden">
+      <Sidebar
+        conversations={conversations}
+        activeId={activeId}
+        onSelect={handleSelect}
+        onNew={handleNew}
+        onDelete={handleDelete}
+        collapsed={sidebarCollapsed}
+      />
+      <ChatArea
+        conversation={activeConversation}
+        onUpdateConversation={handleUpdateConversation}
+        onAddMessage={handleAddMessage}
+      />
     </div>
   );
 }
