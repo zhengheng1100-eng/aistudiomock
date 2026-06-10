@@ -7,16 +7,6 @@ export const AVAILABLE_MODELS: ModelInfo[] = [
     description: 'Latest fast and efficient model for rapid responses',
   },
   {
-    id: 'gemini-3.1-pro-preview',
-    name: 'Gemini 3.1 Pro Preview',
-    description: 'Latest advanced reasoning model with enhanced capabilities',
-  },
-  {
-    id: 'gemini-3-pro-preview',
-    name: 'Gemini 3 Pro Preview',
-    description: 'New generation pro model for complex tasks',
-  },
-  {
     id: 'gemini-3-flash-preview',
     name: 'Gemini 3 Flash Preview',
     description: 'Next generation fast model in preview',
