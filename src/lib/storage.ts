@@ -53,15 +53,27 @@ export function deleteConversation(id: string): void {
 }
 
 export function addMessage(conversationId: string, message: Message): Conversation | null {
+  const conversations = getConversations();
+  const conversation = conversations.find((c) => c.id === conversationId);
+
+  if (!conversation) return null;
+
+  const newMessages = [...conversation.messages, message];
+  let newTitle = conversation.title;
+
+  // Only update title if it's the initial 'New Chat' or empty and it's a user message
+  if (
+    message.role === 'user' &&
+    message.content.length > 0 &&
+    (newTitle === 'New Chat' || !newTitle)
+  ) {
+    newTitle = message.content.slice(0, 40) + (message.content.length > 40 ? '...' : '');
+  }
+
   return updateConversation(conversationId, {
-    messages: [
-      ...(getConversations().find((c) => c.id === conversationId)?.messages || []),
-      message,
-    ],
-    title: message.role === 'user' && message.content.length > 0
-      ? message.content.slice(0, 40) + (message.content.length > 40 ? '...' : '')
-      : undefined,
-  } as Partial<Conversation>);
+    messages: newMessages,
+    title: newTitle,
+  });
 }
 
 // Auth helpers
