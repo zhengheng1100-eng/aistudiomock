@@ -38,7 +38,7 @@ export default function HomePage() {
   const activeConversation = conversations.find((c) => c.id === activeId) || null;
 
   const handleNew = useCallback(() => {
-    const conv = createConversation(AVAILABLE_MODELS[0].id, false);
+    const conv = createConversation(AVAILABLE_MODELS[0].id, true); // Set webSearch to true by default
     setConversations(getConversations());
     setActiveId(conv.id);
   }, []);
