@@ -5,15 +5,19 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { messages, model, webSearch } = body;
 
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
+    // Check both possible env var names for compatibility
+    const apiKey =
+      process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'API key not configured. Set GOOGLE_AI_API_KEY or GEMINI_API_KEY environment variable.' },
+        { status: 500 }
+      );
     }
 
-    // Build the request to Google AI API
+    // Use the v1beta API endpoint
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
-    // Convert messages to Gemini format
     const contents = messages.map((msg: { role: string; content: string }) => ({
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.content }],
@@ -21,7 +25,6 @@ export async function POST(req: NextRequest) {
 
     const requestBody: Record<string, unknown> = { contents };
 
-    // Add web search tool if enabled
     if (webSearch) {
       requestBody.tools = [
         {
@@ -40,12 +43,11 @@ export async function POST(req: NextRequest) {
       const errorText = await response.text();
       console.error('Google AI API error:', response.status, errorText);
       return NextResponse.json(
-        { error: `API error: ${response.status}` },
+        { error: `API error: ${response.status} - ${errorText.slice(0, 200)}` },
         { status: response.status }
       );
     }
 
-    // Stream the response back
     const reader = response.body?.getReader();
     if (!reader) {
       return NextResponse.json({ error: 'No response body' }, { status: 500 });

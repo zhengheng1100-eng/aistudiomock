@@ -2,23 +2,28 @@ import { ModelInfo } from '@/types';
 
 export const AVAILABLE_MODELS: ModelInfo[] = [
   {
+    id: 'gemini-3.1-pro',
+    name: 'Gemini 3.1 Pro',
+    description: 'Latest advanced reasoning model with enhanced capabilities',
+  },
+  {
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
+    description: 'Latest fast and efficient model for rapid responses',
+  },
+  {
+    id: 'gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    description: 'Advanced model for complex reasoning and analysis',
+  },
+  {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    description: 'Fast and versatile model with balanced performance',
+  },
+  {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
-    description: 'Fast and versatile model for most tasks',
-  },
-  {
-    id: 'gemini-2.0-flash-lite',
-    name: 'Gemini 2.0 Flash-Lite',
-    description: 'Lightweight model for simple tasks',
-  },
-  {
-    id: 'gemini-1.5-pro',
-    name: 'Gemini 1.5 Pro',
-    description: 'Advanced model for complex reasoning',
-  },
-  {
-    id: 'gemini-1.5-flash',
-    name: 'Gemini 1.5 Flash',
-    description: 'Balanced speed and capability',
+    description: 'Proven fast model for everyday tasks',
   },
 ];
