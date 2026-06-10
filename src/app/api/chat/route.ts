@@ -9,7 +9,6 @@ async function fetchWithRetry(url: string, body: unknown, retries = 2): Promise<
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      // If 503 (Service Unavailable), retry after a short delay
       if (response.status === 503 && i < retries) {
         await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
         continue;
@@ -41,10 +40,32 @@ export async function POST(req: NextRequest) {
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
-    const contents = messages.map((msg: { role: string; content: string }) => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }],
-    }));
+    // Convert messages to Gemini format with support for inline_data (images/files)
+    const contents = messages.map((msg: { role: string; content: string; attachments?: { mimeType: string; data: string; name: string }[] }) => {
+      const parts: unknown[] = [];
+
+      // Add text content if present
+      if (msg.content) {
+        parts.push({ text: msg.content });
+      }
+
+      // Add attachments as inline_data
+      if (msg.attachments && msg.attachments.length > 0) {
+        for (const att of msg.attachments) {
+          parts.push({
+            inline_data: {
+              mime_type: att.mimeType,
+              data: att.data,
+            },
+          });
+        }
+      }
+
+      return {
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts,
+      };
+    });
 
     const requestBody: Record<string, unknown> = { contents };
 
@@ -56,7 +77,7 @@ export async function POST(req: NextRequest) {
       ];
     }
 
-    console.log(`Calling Gemini API: model=${model}, webSearch=${webSearch}`);
+    console.log(`Calling Gemini API: model=${model}, webSearch=${webSearch}, parts count:`, contents.length);
     const response = await fetchWithRetry(url, requestBody);
 
     if (!response.ok) {

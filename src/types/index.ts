@@ -1,7 +1,16 @@
+export interface Attachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  data: string; // base64 encoded
+  size: number;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  attachments?: Attachment[];
   timestamp: number;
 }
 

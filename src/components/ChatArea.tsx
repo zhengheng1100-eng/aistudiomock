@@ -1,13 +1,21 @@
 'use client';
 
 import { useState, useRef, useEffect, FormEvent } from 'react';
-import { Message, Conversation } from '@/types';
+import { Message, Conversation, Attachment } from '@/types';
 import { AVAILABLE_MODELS } from '@/lib/models';
 
 interface ChatAreaProps {
   conversation: Conversation | null;
   onUpdateConversation: (id: string, updates: Partial<Conversation>) => void;
   onAddMessage: (conversationId: string, message: Message) => void;
+}
+
+const ACCEPTED_TYPES = 'image/*,.pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.ppt,.pptx';
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
 export default function ChatArea({
@@ -18,8 +26,10 @@ export default function ChatArea({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const prevConvIdRef = useRef(conversation?.id ?? '');
 
   useEffect(() => {
@@ -29,21 +39,67 @@ export default function ChatArea({
   if (prevConvIdRef.current !== (conversation?.id ?? '')) {
     prevConvIdRef.current = conversation?.id ?? '';
     setStreamingContent('');
+    setPendingAttachments([]);
   }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const newAttachments: Attachment[] = [];
+    const readers: Promise<void>[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const reader = new FileReader();
+      readers.push(
+        new Promise<void>((resolve) => {
+          reader.onload = () => {
+            const base64 = (reader.result as string).split(',')[1];
+            newAttachments.push({
+              id: crypto.randomUUID(),
+              name: file.name,
+              mimeType: file.type,
+              data: base64,
+              size: file.size,
+            });
+            resolve();
+          };
+          reader.readAsDataURL(file);
+        })
+      );
+    }
+
+    Promise.all(readers).then(() => {
+      setPendingAttachments((prev) => [...prev, ...newAttachments]);
+    });
+
+    // Reset file input so same file can be re-selected
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = (id: string) => {
+    setPendingAttachments((prev) => prev.filter((a) => a.id !== id));
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !conversation || loading) return;
+    const hasText = input.trim().length > 0;
+    if ((!hasText && pendingAttachments.length === 0) || !conversation || loading) return;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
       content: input.trim(),
+      attachments: pendingAttachments.length > 0 ? pendingAttachments : undefined,
       timestamp: Date.now(),
     };
 
     onAddMessage(conversation.id, userMessage);
     setInput('');
+    setPendingAttachments([]);
     setLoading(true);
     setStreamingContent('');
 
@@ -165,7 +221,7 @@ export default function ChatArea({
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <h3 className="text-lg font-medium text-gray-600 mb-1">Start a conversation</h3>
-              <p className="text-sm text-gray-400">Type a message below to begin</p>
+              <p className="text-sm text-gray-400">Type a message or upload an image/file to begin</p>
             </div>
           </div>
         )}
@@ -189,6 +245,29 @@ export default function ChatArea({
                   : 'bg-gray-100 text-gray-800'
               }`}
             >
+              {/* Render attachments */}
+              {msg.attachments && msg.attachments.length > 0 && (
+                <div className={`flex flex-wrap gap-2 mb-2 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                  {msg.attachments.map((att) => (
+                    <div key={att.id} className="relative group">
+                      {att.mimeType.startsWith('image/') ? (
+                        <img
+                          src={`data:${att.mimeType};base64,${att.data}`}
+                          alt={att.name}
+                          className="max-w-[200px] max-h-[200px] rounded-lg object-cover border border-gray-200"
+                        />
+                      ) : (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/20 text-sm">
+                          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <span className="truncate max-w-[100px]">{att.name}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
             </div>
             {msg.role === 'user' && (
@@ -238,6 +317,48 @@ export default function ChatArea({
 
       {/* Input Area */}
       <div className="px-6 py-4 border-t border-gray-200">
+        {/* Pending attachments preview */}
+        {pendingAttachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {pendingAttachments.map((att) => (
+              <div key={att.id} className="relative group bg-gray-50 rounded-lg border border-gray-200 p-2 pr-8">
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(att.id)}
+                  className="absolute top-1 right-1 w-5 h-5 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                {att.mimeType.startsWith('image/') ? (
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={`data:${att.mimeType};base64,${att.data}`}
+                      alt={att.name}
+                      className="w-12 h-12 rounded object-cover"
+                    />
+                    <div className="text-xs text-gray-500">
+                      <p className="font-medium text-gray-700 truncate max-w-[120px]">{att.name}</p>
+                      <p>{formatFileSize(att.size)}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <div className="text-xs text-gray-500">
+                      <p className="font-medium text-gray-700 truncate max-w-[120px]">{att.name}</p>
+                      <p>{formatFileSize(att.size)}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="flex gap-3 items-end">
           <div className="flex-1 relative">
             <textarea
@@ -251,9 +372,31 @@ export default function ChatArea({
               style={{ minHeight: '48px', maxHeight: '120px' }}
             />
           </div>
+
+          {/* File upload button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={loading}
+            className="flex-shrink-0 w-12 h-12 bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+            title="Attach file or image"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            </svg>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={ACCEPTED_TYPES}
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+
           <button
             type="submit"
-            disabled={!input.trim() || loading}
+            disabled={(input.trim().length === 0 && pendingAttachments.length === 0) || loading}
             className="flex-shrink-0 w-12 h-12 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
