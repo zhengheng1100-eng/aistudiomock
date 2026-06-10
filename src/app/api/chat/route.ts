@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const runtime = 'edge';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -102,9 +104,13 @@ export async function POST(req: NextRequest) {
                 const jsonStr = trimmed.slice(6);
                 try {
                   const data = JSON.parse(jsonStr);
-                  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-                  if (text) {
-                    controller.enqueue(encoder.encode(text));
+                  const parts = data?.candidates?.[0]?.content?.parts;
+                  if (parts && Array.isArray(parts)) {
+                    for (const part of parts) {
+                      if (part.text) {
+                        controller.enqueue(encoder.encode(part.text));
+                      }
+                    }
                   }
                 } catch {
                   // Skip malformed JSON
