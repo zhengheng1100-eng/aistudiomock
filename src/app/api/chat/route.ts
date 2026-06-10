@@ -1,29 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-async function fetchWithRetry(url: string, body: unknown, retries = 2): Promise<Response> {
-  let lastError: Error | null = null;
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (response.status === 503 && i < retries) {
-        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
-        continue;
-      }
-      return response;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      if (i < retries) {
-        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
-      }
-    }
-  }
-  throw lastError || new Error('Request failed after retries');
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -78,7 +54,11 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`Calling Gemini API: model=${model}, webSearch=${webSearch}, parts count:`, contents.length);
-    const response = await fetchWithRetry(url, requestBody);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
